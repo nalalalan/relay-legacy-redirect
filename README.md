@@ -1,3 +1,3 @@
-# Relay Live
+# Relay Legacy Redirect
 
-Live aggregate signal dashboard for Relay.
+The old Relay Live surface has been retired. Use https://relay.aolabs.io.
