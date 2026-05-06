@@ -103,15 +103,15 @@
     .dot.err { background: var(--red); }
 
     main {
-      padding: 24px 0 42px;
+      padding: 18px 0 42px;
     }
 
     .hero {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 18px;
-      align-items: end;
-      padding: 6px 0 18px;
+      align-items: center;
+      padding: 2px 0 14px;
     }
 
     h1,
@@ -122,15 +122,15 @@
     }
 
     h1 {
-      font-size: clamp(32px, 5vw, 54px);
-      line-height: .98;
+      font-size: clamp(24px, 3vw, 34px);
+      line-height: 1.05;
       font-weight: 900;
     }
 
     .sub {
-      margin-top: 8px;
+      margin-top: 6px;
       color: var(--muted);
-      font-size: clamp(16px, 1.9vw, 20px);
+      font-size: 14px;
       font-weight: 650;
       line-height: 1.35;
       max-width: 760px;
@@ -184,8 +184,8 @@
     }
 
     .card {
-      min-height: 110px;
-      padding: 15px;
+      min-height: 96px;
+      padding: 14px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
@@ -200,7 +200,7 @@
 
     .value {
       margin-top: 7px;
-      font-size: clamp(28px, 4vw, 43px);
+      font-size: clamp(26px, 3.5vw, 38px);
       line-height: 1;
       font-weight: 900;
     }
@@ -419,9 +419,9 @@
 
     .plain-row {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(92px, .42fr) minmax(0, 1fr);
       gap: 12px;
-      align-items: baseline;
+      align-items: start;
       border-bottom: 1px solid var(--line);
       padding-bottom: 10px;
     }
@@ -440,8 +440,9 @@
       color: var(--muted);
       font-size: 12px;
       font-weight: 720;
-      text-align: right;
-      white-space: nowrap;
+      text-align: left;
+      white-space: normal;
+      overflow-wrap: anywhere;
     }
 
     .links {
@@ -496,7 +497,7 @@
       }
 
       h1 {
-        font-size: 32px;
+        font-size: 24px;
       }
 
       .answer-grid {
@@ -549,7 +550,7 @@
   <main class="wrap">
     <section class="hero" aria-label="Relay live status">
       <div>
-        <h1>Is Relay improving?</h1>
+        <h1>Live metrics</h1>
         <p class="sub" id="summaryLine">Loading the live trend.</p>
       </div>
       <div class="tabs" role="tablist" aria-label="Time range">
@@ -651,7 +652,7 @@
       <article class="panel">
         <div class="panel-head">
           <h2>Autonomous loop</h2>
-          <span class="small">plain status</span>
+          <span class="small">status</span>
         </div>
         <div id="loopList" class="plain-list"></div>
       </article>
@@ -1068,7 +1069,7 @@
         var readiness = success.launch_readiness || {};
         var rows = [
           {
-            label: "current job",
+            label: "now",
             value: readiness.next_step || success.next_action || "watch for buyer signal"
           },
           {
@@ -1080,7 +1081,7 @@
             value: success.active_experiment_progress || "0/10"
           },
           {
-            label: "manual input",
+            label: "you",
             value: (((moneySystem.operator_mode || {}).do_not_interrupt_user) || ((success.owner_absence_contract || {}).manual_input_required === false)) ? "not needed right now" : "needed"
           }
         ];
@@ -1132,8 +1133,8 @@
         $("nextMoveValue").textContent = progress;
         $("nextMoveHint").textContent = nextStep;
         $("summaryLine").textContent = viewsToday > viewsBaseline && viewsBaseline
-          ? "Attention is up. Money is still $0."
-          : "Tracking whether attention becomes buyer signal.";
+          ? "Views are above the recent average. Revenue is $0."
+          : "Waiting for attention to turn into buyer signal.";
         $("updatedAt").textContent = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
         $("rangeLabel").textContent = rangeName();
         $("trendRange").textContent = days === 1 ? "last 7 days / local dates" : rangeName() + " / local dates";
