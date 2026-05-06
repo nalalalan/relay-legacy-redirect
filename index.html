@@ -223,6 +223,11 @@
       margin-top: 12px;
     }
 
+    .single-grid {
+      grid-template-columns: minmax(0, 1fr);
+      margin-top: 12px;
+    }
+
     .panel {
       padding: 16px;
       min-height: 238px;
@@ -564,14 +569,14 @@
     <section class="grid answer-grid" aria-label="Current answers">
       <article class="card">
         <div>
-          <div class="label">Views today</div>
+          <div class="label">Views / 24h</div>
           <div id="viewsValue" class="value blue">-</div>
         </div>
         <div id="viewsHint" class="hint">-</div>
       </article>
       <article class="card">
         <div>
-          <div class="label">Offer clicks today</div>
+          <div class="label">Offer clicks / 24h</div>
           <div id="clicksValue" class="value good">-</div>
         </div>
         <div id="clicksHint" class="hint">Sample, notes, checkout, or lead action.</div>
@@ -635,20 +640,7 @@
       </article>
     </section>
 
-    <section class="grid main-grid" aria-label="Today and next action">
-      <article class="panel tall">
-        <div class="panel-head">
-          <h2>Today by hour</h2>
-          <span class="small">your local time</span>
-        </div>
-        <svg id="hourChart" class="chart" role="img" aria-label="Bar chart of views and offer clicks by local hour"></svg>
-        <div class="legend">
-          <span><i class="key"></i>views</span>
-          <span><i class="key action"></i>offer clicks</span>
-        </div>
-        <p id="hourCaption" class="caption">-</p>
-      </article>
-
+    <section class="grid single-grid" aria-label="Autonomous loop">
       <article class="panel">
         <div class="panel-head">
           <h2>Autonomous loop</h2>
@@ -734,7 +726,7 @@
       }
 
       function rangeName() {
-        if (days === 1) return "today";
+        if (days === 1) return "24h";
         if (days === 7) return "week";
         if (days === 30) return "month";
         return "90 days";
@@ -787,7 +779,7 @@
       }
 
       function dailySeries(evidence) {
-        var lookbackDays = days === 1 ? 7 : Math.max(days, 1);
+        var lookbackDays = Math.max(days, 1);
         var cutoff = Date.now() - lookbackDays * 86400000;
         var map = {};
         hourlyRows(evidence).forEach(function (row) {
@@ -802,20 +794,35 @@
         return Object.keys(map).sort().map(function (key) { return map[key]; });
       }
 
-      function todayHourlySeries(evidence) {
-        var today = dateKey(new Date());
+      function hourKey(date) {
+        return dateKey(date) + "T" + String(date.getHours()).padStart(2, "0");
+      }
+
+      function last24HourlySeries(evidence) {
+        var now = new Date();
+        var start = new Date(now);
+        start.setMinutes(0, 0, 0);
+        start.setHours(start.getHours() - 23);
         var slots = Array.from({ length: 24 }, function (_, hour) {
-          return { hour: hour, views: 0, actions: 0 };
+          var slotDate = new Date(start.getTime() + hour * 3600000);
+          return { hour: slotDate.getHours(), key: hourKey(slotDate), views: 0, actions: 0 };
         });
+        var byKey = {};
+        slots.forEach(function (slot) { byKey[slot.key] = slot; });
         hourlyRows(evidence).forEach(function (row) {
-          if (dateKey(row.date) !== today) return;
-          var hour = row.date.getHours();
-          slots[hour].views += Number(row.events.page_view || 0);
+          var key = hourKey(row.date);
+          var slot = byKey[key];
+          if (!slot) return;
+          slot.views += Number(row.events.page_view || 0);
           ACTION_EVENTS.forEach(function (eventName) {
-            slots[hour].actions += Number(row.events[eventName] || 0);
+            slot.actions += Number(row.events[eventName] || 0);
           });
         });
         return slots;
+      }
+
+      function selectedTrendSeries(evidence) {
+        return days === 1 ? last24HourlySeries(evidence) : dailySeries(evidence);
       }
 
       function svgEl(name, attrs) {
@@ -837,7 +844,7 @@
         svg.appendChild(el);
       }
 
-      function drawLineChart(id, rows) {
+      function drawLineChart(id, rows, mode) {
         var svg = $(id);
         svg.innerHTML = "";
         var width = 760;
@@ -889,73 +896,18 @@
           svg.appendChild(svgEl("circle", { cx: x(i), cy: y(row.actions), r: 4, fill: "var(--good)", class: "dot-point" }));
         });
 
-        var tickIndexes = rows.length <= 5
-          ? rows.map(function (_, i) { return i; })
-          : [0, Math.floor((rows.length - 1) / 2), rows.length - 1];
+        var tickIndexes = mode === "hour"
+          ? [0, 6, 12, 18, 23]
+          : rows.length <= 5
+            ? rows.map(function (_, i) { return i; })
+            : [0, Math.floor((rows.length - 1) / 2), rows.length - 1];
         tickIndexes.forEach(function (i) {
-          addText(svg, shortDate(rows[i].label), x(i), height - 18, "tick-label", "middle");
+          if (!rows[i]) return;
+          var label = mode === "hour" ? hourLabel(rows[i].hour) : shortDate(rows[i].label);
+          addText(svg, label, x(i), height - 18, "tick-label", "middle");
         });
         addText(svg, "count", pad.left, 10, "axis-label", "start");
-        addText(svg, "date", width / 2, height - 2, "axis-label", "middle");
-      }
-
-      function drawHourChart(id, rows) {
-        var svg = $(id);
-        svg.innerHTML = "";
-        var width = 760;
-        var height = 230;
-        var pad = { left: 48, right: 16, top: 18, bottom: 42 };
-        svg.setAttribute("viewBox", "0 0 " + width + " " + height);
-
-        var max = Math.max.apply(null, rows.map(function (row) {
-          return Math.max(row.views, row.actions);
-        }).concat([1]));
-        var plotW = width - pad.left - pad.right;
-        var plotH = height - pad.top - pad.bottom;
-        var slotW = plotW / rows.length;
-        var yMax = Math.max(1, Math.ceil(max));
-
-        function y(value) {
-          return pad.top + plotH - (Number(value || 0) / yMax) * plotH;
-        }
-
-        [0, .5, 1].forEach(function (p) {
-          var yy = pad.top + plotH - p * plotH;
-          svg.appendChild(svgEl("line", { x1: pad.left, y1: yy, x2: width - pad.right, y2: yy, class: "grid-line" }));
-          addText(svg, fmt(yMax * p), pad.left - 10, yy + 4, "tick-label", "end");
-        });
-
-        svg.appendChild(svgEl("line", { x1: pad.left, y1: pad.top, x2: pad.left, y2: pad.top + plotH, class: "axis" }));
-        svg.appendChild(svgEl("line", { x1: pad.left, y1: pad.top + plotH, x2: width - pad.right, y2: pad.top + plotH, class: "axis" }));
-
-        rows.forEach(function (row, i) {
-          var x0 = pad.left + i * slotW + 3;
-          var viewH = pad.top + plotH - y(row.views);
-          var actionH = pad.top + plotH - y(row.actions);
-          svg.appendChild(svgEl("rect", {
-            x: x0,
-            y: y(row.views),
-            width: Math.max(slotW - 7, 2),
-            height: Math.max(viewH, row.views ? 2 : 0),
-            rx: 3,
-            class: "bar-view"
-          }));
-          svg.appendChild(svgEl("rect", {
-            x: x0 + Math.max(slotW - 7, 2) * .36,
-            y: y(row.actions),
-            width: Math.max((slotW - 7) * .28, 2),
-            height: Math.max(actionH, row.actions ? 2 : 0),
-            rx: 3,
-            class: "bar-action"
-          }));
-        });
-
-        [0, 6, 12, 18, 23].forEach(function (hour) {
-          var xx = pad.left + hour * slotW + slotW / 2;
-          addText(svg, hourLabel(hour), xx, height - 18, "tick-label", "middle");
-        });
-        addText(svg, "count", pad.left, 10, "axis-label", "start");
-        addText(svg, "hour", width / 2, height - 2, "axis-label", "middle");
+        addText(svg, mode === "hour" ? "hour" : "date", width / 2, height - 2, "axis-label", "middle");
       }
 
       function renderFunnel(evidence) {
@@ -992,10 +944,10 @@
       function cleanSignal(text) {
         var s = String(text || "");
         var map = {
-          page_views_1d_above_prior_6d_average: "Views today beat the recent daily average",
-          page_views_1d_above_prior_13d_average: "Views today beat the two-week daily average",
-          calendar_day_page_views_increased: "Today has more views than the last measured day",
-          sample_clicks_present_1d: "Someone opened the sample today",
+          page_views_1d_above_prior_6d_average: "Views beat the recent daily average",
+          page_views_1d_above_prior_13d_average: "Views beat the two-week daily average",
+          calendar_day_page_views_increased: "Views increased from the last measured day",
+          sample_clicks_present_1d: "Someone opened the sample",
           action_sessions_present: "Some sessions moved past passive viewing",
           engaged_sessions_10s_present: "Some visitors stayed longer than 10 seconds",
           page_engagement_observed_or_lifted_1d: "Page engagement happened today",
@@ -1116,8 +1068,8 @@
         if (viewSignal && viewSignal.baseline !== null && viewSignal.baseline !== undefined) viewsBaseline = Number(viewSignal.baseline || 0);
         var clicksToday = actionTotal(evidence, 1);
         var sampleToday = rolling(evidence, "sample_click", 1) + rolling(evidence, "showcase_sample_click", 1);
-        var trendRows = dailySeries(evidence);
-        var hourRows = todayHourlySeries(evidence);
+        var trendRows = selectedTrendSeries(evidence);
+        var trendMode = days === 1 ? "hour" : "date";
         var first = trendRows[0] || { views: 0, actions: 0 };
         var last = trendRows[trendRows.length - 1] || { views: 0, actions: 0 };
         var delta = last.views - first.views;
@@ -1127,7 +1079,7 @@
           ? fmt(viewSignal.lift || (viewsToday / viewsBaseline)) + "x recent daily average (" + fmt(viewsBaseline) + ")"
           : "views logged in the last 24 hours";
         $("clicksValue").textContent = fmt(clicksToday);
-        $("clicksHint").textContent = fmt(sampleToday) + " sample clicks today.";
+        $("clicksHint").textContent = fmt(sampleToday) + " sample clicks in 24h.";
         $("moneyValue").textContent = money(relayMoney.gross_usd || 0);
         $("moneyHint").textContent = fmt(relayMoney.payments || 0) + " paid tests.";
         $("nextMoveValue").textContent = progress;
@@ -1137,10 +1089,9 @@
           : "Waiting for attention to turn into buyer signal.";
         $("updatedAt").textContent = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
         $("rangeLabel").textContent = rangeName();
-        $("trendRange").textContent = days === 1 ? "last 7 days / local dates" : rangeName() + " / local dates";
+        $("trendRange").textContent = days === 1 ? "24h / local hours" : rangeName() + " / local dates";
 
-        drawLineChart("trendChart", trendRows);
-        drawHourChart("hourChart", hourRows);
+        drawLineChart("trendChart", trendRows, trendMode);
         renderFunnel(evidence);
         renderSignals(evidence, ops);
         renderTiming(evidence);
@@ -1148,15 +1099,9 @@
 
         $("trendCaption").textContent = trendRows.length
           ? (days === 1
-              ? "Today: " + fmt(viewsToday) + " views vs " + fmt(viewsBaseline) + " recent daily average. Offer clicks are sample, notes, checkout, and lead actions."
+              ? "Last 24h: " + fmt(viewsToday) + " views and " + fmt(clicksToday) + " offer clicks, plotted by local hour."
               : "Views changed by " + (delta >= 0 ? "+" : "") + fmt(delta) + " from " + shortDate(first.label) + " to " + shortDate(last.label) + ". Offer clicks are sample, notes, checkout, and lead actions.")
           : "No trend data in this range.";
-        var activeHour = hourRows.reduce(function (best, row) {
-          return (row.views + row.actions) > (best.views + best.actions) ? row : best;
-        }, { hour: 0, views: 0, actions: 0 });
-        $("hourCaption").textContent = (activeHour.views + activeHour.actions)
-          ? "Most activity today is around " + hourLabel(activeHour.hour) + ": " + fmt(activeHour.views) + " views and " + fmt(activeHour.actions) + " offer clicks."
-          : "No activity logged today yet.";
       }
 
       function setStatus(kind, text) {
