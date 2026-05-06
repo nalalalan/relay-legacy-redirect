@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Relay Live</title>
+  <meta name="description" content="Live aggregate signal dashboard for Relay.">
+  <link rel="canonical" href="https://relaylive.aolabs.io/">
+  <meta name="theme-color" content="#f7f5f0">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f5f0;
+      --panel: #fffefa;
+      --ink: #15120e;
+      --muted: #716b62;
+      --line: #ded8cf;
+      --soft: #ece7dd;
+      --good: #266a4a;
+      --watch: #8d5b19;
+      --blue: #285f8f;
+      --shadow: 0 18px 52px rgba(40, 32, 23, .08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    button {
+      font: inherit;
+      color: inherit;
+    }
+
+    .wrap {
+      width: min(calc(100% - 28px), 1120px);
+      margin: 0 auto;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      border-bottom: 1px solid var(--line);
+      background: rgba(247, 245, 240, .9);
+      backdrop-filter: blur(16px);
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 62px;
+      gap: 14px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      font-weight: 850;
+    }
+
+    .mark {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--ink);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 720;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--watch);
+    }
+
+    .dot.live { background: var(--good); }
+    .dot.err { background: #9d2f25; }
+
+    main {
+      padding: 28px 0 42px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: end;
+      padding: 16px 0 20px;
+    }
+
+    h1,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(42px, 8vw, 92px);
+      line-height: .9;
+      font-weight: 900;
+    }
+
+    .sub {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: clamp(17px, 2vw, 22px);
+      font-weight: 650;
+    }
+
+    .tabs {
+      display: inline-grid;
+      grid-template-columns: repeat(4, 1fr);
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .tab {
+      min-width: 68px;
+      min-height: 38px;
+      border: 0;
+      border-right: 1px solid var(--line);
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 850;
+      cursor: pointer;
+    }
+
+    .tab:last-child { border-right: 0; }
+    .tab.active {
+      background: var(--ink);
+      color: #fff;
+    }
+
+    .grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .metrics {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .metric,
+    .panel,
+    .signal {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .metric {
+      min-height: 116px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .value {
+      margin-top: 8px;
+      font-size: clamp(30px, 4vw, 44px);
+      line-height: 1;
+      font-weight: 900;
+    }
+
+    .hint {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 650;
+      line-height: 1.35;
+    }
+
+    .stage {
+      color: var(--blue);
+    }
+
+    .money {
+      color: var(--good);
+    }
+
+    .main-grid {
+      grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr);
+      margin-top: 12px;
+    }
+
+    .panel {
+      min-height: 220px;
+      padding: 16px;
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 900;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 760;
+    }
+
+    .bar-list {
+      display: grid;
+      gap: 9px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 118px minmax(0, 1fr) 44px;
+      gap: 10px;
+      align-items: center;
+      min-height: 24px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 760;
+    }
+
+    .bar-track {
+      height: 8px;
+      border-radius: 999px;
+      background: var(--soft);
+      overflow: hidden;
+    }
+
+    .bar {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--ink);
+    }
+
+    .signals {
+      display: grid;
+      gap: 8px;
+    }
+
+    .signal {
+      padding: 12px;
+      box-shadow: none;
+    }
+
+    .signal-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .signal-name {
+      font-size: 14px;
+      font-weight: 850;
+      line-height: 1.25;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 0 9px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .signal-meta {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .hour-bars {
+      display: grid;
+      grid-template-columns: repeat(24, minmax(4px, 1fr));
+      gap: 4px;
+      align-items: end;
+      min-height: 110px;
+      padding-top: 8px;
+    }
+
+    .hour {
+      min-height: 3px;
+      border-radius: 4px 4px 0 0;
+      background: var(--ink);
+      opacity: .9;
+    }
+
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 12px;
+      background: var(--panel);
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding-top: 18px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 720;
+    }
+
+    @media (max-width: 880px) {
+      .hero,
+      .main-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .tabs {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .wrap {
+        width: min(calc(100% - 22px), 420px);
+      }
+
+      .metrics {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .bar-row {
+        grid-template-columns: 98px minmax(0, 1fr) 36px;
+      }
+
+      h1 {
+        font-size: 56px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap topbar">
+      <a class="brand" href="/">
+        <span class="mark">AO</span>
+        <span>Relay Live</span>
+      </a>
+      <div class="status">
+        <span id="liveDot" class="dot"></span>
+        <span id="statusText">loading</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero" aria-label="Relay live status">
+      <div>
+        <h1>Relay</h1>
+        <p class="sub" id="summaryLine">Watching every useful signal.</p>
+      </div>
+      <div class="tabs" role="tablist" aria-label="Time range">
+        <button class="tab active" data-days="1" type="button">Day</button>
+        <button class="tab" data-days="7" type="button">Week</button>
+        <button class="tab" data-days="30" type="button">Month</button>
+        <button class="tab" data-days="90" type="button">90d</button>
+      </div>
+    </section>
+
+    <section class="grid metrics" aria-label="Key metrics">
+      <article class="metric">
+        <div>
+          <div class="label">Stage</div>
+          <div id="stageValue" class="value stage">-</div>
+        </div>
+        <p id="stageHint" class="hint">waiting for live data</p>
+      </article>
+      <article class="metric">
+        <div>
+          <div class="label">Money</div>
+          <div id="moneyValue" class="value money">$0</div>
+        </div>
+        <p id="moneyHint" class="hint">payments: 0</p>
+      </article>
+      <article class="metric">
+        <div>
+          <div class="label">Actions</div>
+          <div id="actionsValue" class="value">-</div>
+        </div>
+        <p id="actionsHint" class="hint">sessions doing something</p>
+      </article>
+      <article class="metric">
+        <div>
+          <div class="label">Signals</div>
+          <div id="signalsValue" class="value">-</div>
+        </div>
+        <p id="signalsHint" class="hint">positive movement found</p>
+      </article>
+    </section>
+
+    <section class="grid main-grid" aria-label="Live signal details">
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Funnel</h2>
+          <span id="rangeLabel" class="small">Day</span>
+        </div>
+        <div id="funnelBars" class="bar-list"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Moving</h2>
+          <span id="updatedAt" class="small">-</span>
+        </div>
+        <div id="signalsList" class="signals"></div>
+      </article>
+    </section>
+
+    <section class="grid main-grid" aria-label="Timing and live pulse">
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Today</h2>
+          <span class="small">UTC hours</span>
+        </div>
+        <div id="hourBars" class="hour-bars"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Timing</h2>
+          <span class="small">first-party data</span>
+        </div>
+        <div id="timingBars" class="bar-list"></div>
+      </article>
+    </section>
+
+    <div class="links" aria-label="Relay links">
+      <a class="link" href="https://relaybrief.com/">Product</a>
+      <a class="link" href="https://relay.aolabs.io/">Showcase</a>
+      <a class="link" href="https://alan-operator-backend-production.up.railway.app/api/relay/evidence-export?days=30&limit=100">Raw export</a>
+    </div>
+
+    <footer>
+      <span>Aggregate live data only.</span>
+      <span>Refreshes every 30 seconds.</span>
+    </footer>
+  </main>
+
+  <script>
+    (function () {
+      var API = "https://alan-operator-backend-production.up.railway.app/api/relay";
+      var days = 1;
+      var timer = null;
+      var lastEvidence = null;
+      var lastOps = null;
+
+      var names = {
+        page_view: "views",
+        page_engagement: "engaged",
+        scroll_depth: "scroll",
+        sample_click: "sample",
+        showcase_sample_click: "sample",
+        note_intake_click: "notes",
+        notes_started: "started",
+        notes_100_chars: "100 chars",
+        note_intake_submit: "submitted",
+        checkout_click: "checkout",
+        lead_capture: "leads"
+      };
+
+      function $(id) {
+        return document.getElementById(id);
+      }
+
+      function fmt(value) {
+        var n = Number(value || 0);
+        if (n >= 1000) return n.toLocaleString();
+        return String(Math.round(n * 100) / 100);
+      }
+
+      function money(value) {
+        var n = Number(value || 0);
+        return "$" + n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+      }
+
+      function cleanSignal(text) {
+        return String(text || "")
+          .replace(/_observed_or_lifted_1d/g, "")
+          .replace(/_1d_above_prior_/g, " above ")
+          .replace(/_/g, " ");
+      }
+
+      function stageLabel(stage) {
+        var s = String(stage || "none_detected").replace(/_/g, " ");
+        return s === "none detected" ? "none" : s;
+      }
+
+      function rolling(data, key) {
+        var windowKey = days + "d";
+        var counts = (((data || {}).rolling || {}).intent_event_counts || {})[windowKey] || {};
+        return Number(counts[key] || 0);
+      }
+
+      function actionCount(obs) {
+        var depth = (obs || {}).funnel_depth || {};
+        return Number(depth.sessions_with_action || 0);
+      }
+
+      function maxOf(items) {
+        return Math.max.apply(null, items.map(function (item) { return item.value || 0; }).concat([1]));
+      }
+
+      function renderBars(id, items) {
+        var max = maxOf(items);
+        $(id).innerHTML = items.map(function (item) {
+          var width = Math.max((Number(item.value || 0) / max) * 100, item.value ? 2 : 0);
+          return (
+            '<div class="bar-row">' +
+              '<span>' + item.label + '</span>' +
+              '<span class="bar-track"><span class="bar" style="width:' + width + '%"></span></span>' +
+              '<span>' + fmt(item.value) + '</span>' +
+            '</div>'
+          );
+        }).join("");
+      }
+
+      function renderSignals(evidence) {
+        var signals = (((evidence || {}).positive_change || {}).signals || []).slice(0, 8);
+        if (!signals.length) {
+          $("signalsList").innerHTML = '<div class="signal"><div class="signal-name">No positive movement yet.</div><div class="signal-meta">Waiting for signal.</div></div>';
+          return;
+        }
+        $("signalsList").innerHTML = signals.map(function (s) {
+          var stage = stageLabel(s.stage || (String(s.signal || "").indexOf("page") >= 0 ? "attention" : "inspection"));
+          var lift = s.lift ? " / " + s.lift + "x" : "";
+          var base = s.baseline !== null && s.baseline !== undefined && s.baseline !== "" ? " vs " + s.baseline : "";
+          return (
+            '<div class="signal">' +
+              '<div class="signal-top">' +
+                '<div class="signal-name">' + cleanSignal(s.signal) + '</div>' +
+                '<span class="pill">' + stage + '</span>' +
+              '</div>' +
+              '<div class="signal-meta">' + fmt(s.current) + base + lift + '</div>' +
+            '</div>'
+          );
+        }).join("");
+      }
+
+      function renderHours(evidence) {
+        var rows = ((((evidence || {}).observable_signals || {}).hourly_event_counts_utc) || []).slice(-24);
+        var totals = rows.map(function (row) {
+          var events = row.events || {};
+          return Object.keys(events).reduce(function (sum, key) { return sum + Number(events[key] || 0); }, 0);
+        });
+        var max = Math.max.apply(null, totals.concat([1]));
+        $("hourBars").innerHTML = totals.map(function (total) {
+          var height = Math.max((total / max) * 100, total ? 4 : 2);
+          return '<span class="hour" title="' + total + ' events" style="height:' + height + '%"></span>';
+        }).join("");
+      }
+
+      function renderTiming(evidence) {
+        var obs = ((evidence || {}).observable_signals || {});
+        var timing = obs.first_action_timing_seconds || {};
+        var outbound = (obs.outbound_link_response || {}).seconds_after_send || {};
+        renderBars("timingBars", [
+          { label: "sample sec", value: (timing.sample_click || {}).median || 0 },
+          { label: "notes sec", value: (timing.note_intake_click || {}).median || 0 },
+          { label: "checkout sec", value: (timing.checkout_click || {}).median || 0 },
+          { label: "send->visit", value: outbound.median || 0 }
+        ]);
+      }
+
+      function render(evidence, ops) {
+        var positive = (evidence || {}).positive_change || {};
+        var obs = (evidence || {}).observable_signals || {};
+        var depth = obs.funnel_depth || {};
+        var relayMoney = (((ops || {}).relay_success || {}).money || {});
+        var gross = relayMoney.gross_usd || 0;
+        var payments = relayMoney.payments || 0;
+        var stage = positive.success_stage || "none_detected";
+        var signals = (positive.signals || []).length;
+
+        $("stageValue").textContent = stageLabel(stage);
+        $("stageHint").textContent = "current strongest stage";
+        $("moneyValue").textContent = money(gross);
+        $("moneyHint").textContent = "payments: " + fmt(payments);
+        $("actionsValue").textContent = fmt(actionCount(obs));
+        $("actionsHint").textContent = fmt(depth.sessions || obs.session_count || 0) + " sessions";
+        $("signalsValue").textContent = fmt(signals);
+        $("signalsHint").textContent = "positive signals";
+        $("summaryLine").textContent = "Watching attention, inspection, buyer signal, and revenue.";
+        $("updatedAt").textContent = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+        $("rangeLabel").textContent = days === 1 ? "Day" : days === 7 ? "Week" : days === 30 ? "Month" : "90 days";
+
+        renderBars("funnelBars", [
+          { label: "views", value: rolling(evidence, "page_view") },
+          { label: "engaged", value: rolling(evidence, "page_engagement") },
+          { label: "sample", value: rolling(evidence, "sample_click") + rolling(evidence, "showcase_sample_click") },
+          { label: "notes", value: rolling(evidence, "note_intake_click") },
+          { label: "started", value: rolling(evidence, "notes_started") },
+          { label: "checkout", value: rolling(evidence, "checkout_click") },
+          { label: "leads", value: rolling(evidence, "lead_capture") }
+        ]);
+
+        renderSignals(evidence);
+        renderHours(evidence);
+        renderTiming(evidence);
+      }
+
+      function setStatus(kind, text) {
+        $("liveDot").className = "dot " + kind;
+        $("statusText").textContent = text;
+      }
+
+      async function load() {
+        try {
+          setStatus("", "updating");
+          var bust = Date.now();
+          var evidenceUrl = API + "/evidence-export?days=" + days + "&limit=120&_=" + bust;
+          var opsUrl = API + "/ops-check?days=7&_=" + bust;
+          var responses = await Promise.all([
+            fetch(evidenceUrl, { cache: "no-store" }),
+            fetch(opsUrl, { cache: "no-store" })
+          ]);
+          if (!responses[0].ok || !responses[1].ok) throw new Error("fetch failed");
+          lastEvidence = await responses[0].json();
+          lastOps = await responses[1].json();
+          render(lastEvidence, lastOps);
+          setStatus("live", "live");
+        } catch (error) {
+          setStatus("err", "offline");
+          if (lastEvidence) render(lastEvidence, lastOps || {});
+        }
+      }
+
+      Array.prototype.slice.call(document.querySelectorAll(".tab")).forEach(function (button) {
+        button.addEventListener("click", function () {
+          days = Number(button.getAttribute("data-days") || 1);
+          Array.prototype.slice.call(document.querySelectorAll(".tab")).forEach(function (tab) {
+            tab.classList.toggle("active", tab === button);
+          });
+          load();
+        });
+      });
+
+      load();
+      timer = window.setInterval(load, 30000);
+      window.addEventListener("pagehide", function () {
+        if (timer) window.clearInterval(timer);
+      });
+    }());
+  </script>
+</body>
+</html>
